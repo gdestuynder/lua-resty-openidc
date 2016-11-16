@@ -470,7 +470,7 @@ function openidc.authenticate(opts, target_url)
     --end
     opts.discovery, err = openidc_discover(opts.discovery, opts.ssl_verify)
     if err then
-      return nil, err, target_url
+      return nil, err, target_url, session
     end
   end
 
@@ -480,17 +480,18 @@ function openidc.authenticate(opts, target_url)
   -- see if this is a request to the redirect_uri i.e. an authorization response
   local path = target_url:match("(.-)%?") or target_url
   if path == opts.redirect_uri_path then
-    return openidc_authorization_response(opts, session)
+    return openidc_authorization_response(opts, session), session
   end
 
   -- see if this is a request to logout
   if path == (opts.logout_path and opts.logout_path or "/logout") then
-    return openidc_logout(opts, session)
+    return openidc_logout(opts, session), session
   end
 
   -- if we have no id_token then redirect to the OP for authentication
   if not session.data.id_token then
-    return openidc_authorize(opts, session, target_url)
+    ngx.log(ngx.DEBUG, "no id_token found in session, redirecting to OP")
+    return openidc_authorize(opts, session, target_url), session
   end
 
   -- log id_token contents
@@ -504,7 +505,8 @@ function openidc.authenticate(opts, target_url)
       user=session.data.user
     },
     err,
-    target_url
+    target_url,
+    session
 end
 
 -- get an OAuth 2.0 bearer access token from the HTTP request
